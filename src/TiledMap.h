@@ -4,6 +4,8 @@
 #include <tmxlite/Map.hpp>
 #include <tmxlite/TileLayer.hpp>
 
+#include "Physics/AABB.hpp"
+
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -16,6 +18,10 @@ public:
 
     [[nodiscard]] bool IsLoaded() const { return loaded_; }
     [[nodiscard]] Rectangle Bounds() const;
+    [[nodiscard]] Vector2 GetTileSize() const;
+
+    [[nodiscard]] std::vector<AABB> GetColliders() const;
+    [[nodiscard]] std::vector<AABB> GetLayerColliders(const std::string& layerName) const;
 
 private:
     struct TilesetTexture {

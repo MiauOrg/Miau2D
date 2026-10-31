@@ -4,10 +4,11 @@
 #include <raymath.h>
 
 #include "Character.hpp"
+#include "Physics/PhysicsWorld.hpp"
 
 namespace {
 
-void ClampCamera(Camera2D& camera, const Rectangle& bounds) {
+[[maybe_unused]] void ClampCamera(Camera2D& camera, const Rectangle& bounds) {
     const float halfWidth = GetScreenWidth() * 0.5f / camera.zoom;
     const float halfHeight = GetScreenHeight() * 0.5f / camera.zoom;
 
@@ -46,23 +47,61 @@ int main() {
 
     const Rectangle bounds = map.Bounds();
 
-    Character player({ 400.0f, 225.0f });
+    PhysicsWorld physicsWorld;
+    physicsWorld.SetWorldBounds(bounds);
+    physicsWorld.AddStaticColliders(map.GetColliders());
+
+    Character player({ 200.0f, 120.0f });
+    player.SetTileSize(map.GetTileSize());
+    player.SnapToGrid(&physicsWorld);
+
     Texture2D texture = LoadTexture("assets/characters/Character.png");
 
     Camera2D camera{};
     camera.zoom = 1.0f;
     camera.target = player.position - Vector2 { VirtualResolutionWidth / 2.0f, VirtualResolutionHeight / 2.0f };
 
+    bool debugPhysics = false;
+    bool preferHorizontal = true;
+    const Vector2 tileSize = map.GetTileSize();
 
     while (!WindowShouldClose()) {
         const float dt = GetFrameTime();
-        const float speed = 600.0f / camera.zoom;
+
+        if (IsKeyPressed(KEY_F1)) {
+            debugPhysics = !debugPhysics;
+        }
+
+        if (IsKeyPressed(KEY_F2)) {
+            const MovementMode nextMode = (player.GetMovementMode() == MovementMode::Grid)
+                ? MovementMode::Continuous
+                : MovementMode::Grid;
+            player.SetMovementMode(nextMode, &physicsWorld);
+        }
 
         Vector2 dir = { 0.0f, 0.0f };
         if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))  dir.x -= 1.0f;
         if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT)) dir.x += 1.0f;
         if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP))    dir.y -= 1.0f;
         if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN))  dir.y += 1.0f;
+
+        // Grid movement is 4-directional. When two axes are held, use the one
+        // that was pressed most recently so turning works while holding a key.
+        if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP) ||
+            IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN)) {
+            preferHorizontal = false;
+        }
+        if (IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT) ||
+            IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT)) {
+            preferHorizontal = true;
+        }
+        if (player.GetMovementMode() == MovementMode::Grid && dir.x != 0.0f && dir.y != 0.0f) {
+            if (preferHorizontal) {
+                dir.y = 0.0f;
+            } else {
+                dir.x = 0.0f;
+            }
+        }
 
         dir = Vector2Normalize(dir);
 
@@ -73,7 +112,7 @@ int main() {
         camera.zoom = Clamp(camera.zoom, 0.25f, 4.0f);
 
         player.Move(dir);
-        player.Update(dt);
+        player.Update(dt, &physicsWorld);
         
         // To eliminate sub pixel jitter
         Camera2D renderCamera = camera;
@@ -85,7 +124,20 @@ int main() {
             ClearBackground({16, 18, 27, 255});
             BeginMode2D(renderCamera);
                 map.Draw();
+                if (debugPhysics) {
+                    // Grid overlay to visualise tile alignment
+                    for (float x = bounds.x; x <= bounds.x + bounds.width + 0.5f; x += tileSize.x) {
+                        DrawLineV({ x, bounds.y }, { x, bounds.y + bounds.height }, Fade(WHITE, 0.12f));
+                    }
+                    for (float y = bounds.y; y <= bounds.y + bounds.height + 0.5f; y += tileSize.y) {
+                        DrawLineV({ bounds.x, y }, { bounds.x + bounds.width, y }, Fade(WHITE, 0.12f));
+                    }
+                }
                 player.Draw(texture);
+                if (debugPhysics) {
+                    physicsWorld.DrawDebug();
+                    player.DrawDebug();
+                }
             EndMode2D();
         EndTextureMode();
 
@@ -109,6 +161,20 @@ int main() {
             // Low res Viewport to screen
             DrawTexturePro(viewportTarget.texture, srcRec, destRec, {0, 0}, 0.0f, WHITE);
             DrawText("AAAAAAAAA", 20, 20, 24, RAYWHITE);
+            DrawText(
+                TextFormat("Movement: %s (F2 to toggle)",
+                           player.GetMovementMode() == MovementMode::Grid ? "Grid" : "Free"),
+                20, 50, 16, SKYBLUE);
+            if (debugPhysics) {
+                const Vector2 cell = player.GetCell();
+                DrawText("Physics Debug: ON (F1 to toggle)", 20, 74, 16, LIME);
+                DrawText(
+                    TextFormat("Static Colliders: %d | Cell: %.0f, %.0f",
+                               (int)physicsWorld.GetColliderCount(), cell.x, cell.y),
+                    20, 94, 16, RAYWHITE);
+            } else {
+                DrawText("Press F1 to toggle Physics Debug", 20, 74, 16, GRAY);
+            }
             DrawFPS((int)screenWidth - 100, 20);
         EndDrawing();
     }

@@ -2,7 +2,10 @@
 
 #include <tmxlite/Layer.hpp>
 #include <tmxlite/Tileset.hpp>
+#include <tmxlite/ObjectGroup.hpp>
 
+#include <algorithm>
+#include <cctype>
 #include <cstddef>
 
 namespace {
@@ -72,6 +75,10 @@ void TiledMap::Draw() const {
             continue;
         }
 
+        if (layer->getName() == "Collision") {
+            continue;
+        }
+
         DrawTileLayer(layer->getLayerAs<tmx::TileLayer>());
     }
 }
@@ -79,6 +86,11 @@ void TiledMap::Draw() const {
 Rectangle TiledMap::Bounds() const {
     const auto bounds = map_.getBounds();
     return {bounds.left, bounds.top, bounds.width, bounds.height};
+}
+
+Vector2 TiledMap::GetTileSize() const {
+    const auto tileSize = map_.getTileSize();
+    return {static_cast<float>(tileSize.x), static_cast<float>(tileSize.y)};
 }
 
 const TiledMap::TilesetTexture* TiledMap::FindTileset(std::uint32_t gid) const {
@@ -138,4 +150,106 @@ void TiledMap::DrawTileLayer(const tmx::TileLayer& layer) const {
         DrawTexturePro(tileset->texture, source, destination, {0.0f, 0.0f}, 0.0f,
                        Fade(WHITE, layer.getOpacity()));
     }
+}
+
+std::vector<AABB> TiledMap::GetLayerColliders(const std::string& layerName) const {
+    std::vector<AABB> colliders;
+    if (!loaded_) {
+        return colliders;
+    }
+
+    const auto tileSize = map_.getTileSize();
+
+    for (const auto& layer : map_.getLayers()) {
+        if (layer->getName() != layerName) {
+            continue;
+        }
+
+        if (layer->getType() == tmx::Layer::Type::Object) {
+            const auto& objectGroup = layer->getLayerAs<tmx::ObjectGroup>();
+            for (const auto& obj : objectGroup.getObjects()) {
+                const auto& aabb = obj.getAABB();
+                colliders.emplace_back(aabb.left, aabb.top, aabb.width, aabb.height);
+            }
+        } else if (layer->getType() == tmx::Layer::Type::Tile) {
+            const auto& tileLayer = layer->getLayerAs<tmx::TileLayer>();
+            const auto& tiles = tileLayer.getTiles();
+            const auto size = tileLayer.getSize();
+
+            if (tiles.empty() || size.x == 0 || size.y == 0) {
+                continue;
+            }
+
+            // Merge contiguous horizontal tiles into single AABB boxes
+            for (std::uint32_t y = 0; y < size.y; ++y) {
+                std::uint32_t startX = 0;
+                bool inSpan = false;
+
+                for (std::uint32_t x = 0; x < size.x; ++x) {
+                    const auto& tile = tiles[y * size.x + x];
+                    const bool isSolid = (tile.ID != 0);
+
+                    if (isSolid) {
+                        if (!inSpan) {
+                            startX = x;
+                            inSpan = true;
+                        }
+                    } else {
+                        if (inSpan) {
+                            colliders.emplace_back(
+                                static_cast<float>(startX * tileSize.x),
+                                static_cast<float>(y * tileSize.y),
+                                static_cast<float>((x - startX) * tileSize.x),
+                                static_cast<float>(tileSize.y)
+                            );
+                            inSpan = false;
+                        }
+                    }
+                }
+
+                if (inSpan) {
+                    colliders.emplace_back(
+                        static_cast<float>(startX * tileSize.x),
+                        static_cast<float>(y * tileSize.y),
+                        static_cast<float>((size.x - startX) * tileSize.x),
+                        static_cast<float>(tileSize.y)
+                    );
+                }
+            }
+        }
+    }
+
+    return colliders;
+}
+
+std::vector<AABB> TiledMap::GetColliders() const {
+    std::vector<AABB> colliders;
+    if (!loaded_) {
+        return colliders;
+    }
+
+    bool foundSpecificCollisionLayer = false;
+
+    for (const auto& layer : map_.getLayers()) {
+        if (layer->getType() == tmx::Layer::Type::Object) {
+            const auto layerColliders = GetLayerColliders(layer->getName());
+            colliders.insert(colliders.end(), layerColliders.begin(), layerColliders.end());
+            foundSpecificCollisionLayer = true;
+            continue;
+        }
+
+        std::string nameLower = layer->getName();
+        std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+        if (nameLower.find("collision") != std::string::npos ||
+            nameLower.find("solid") != std::string::npos ||
+            nameLower.find("obstacle") != std::string::npos) {
+            const auto layerColliders = GetLayerColliders(layer->getName());
+            colliders.insert(colliders.end(), layerColliders.begin(), layerColliders.end());
+            foundSpecificCollisionLayer = true;
+        }
+    }
+
+    return colliders;
 }
