@@ -1,10 +1,31 @@
 #include "Player.hpp"
 
+#include "AppConfig.hpp"
+#include "Physics/GridPathfinder.hpp"
 #include "Movement.hpp"
 #include "Scene.hpp"
 
 #include <raylib.h>
-#include <raymath.h>
+
+#include <cmath>
+#include <utility>
+#include <vector>
+
+namespace {
+
+Rectangle GetViewportDestination() {
+    const float screenWidth = static_cast<float>(GetScreenWidth());
+    const float screenHeight = static_cast<float>(GetScreenHeight());
+    const float scale = std::fmin(screenWidth / VirtualWidth, screenHeight / VirtualHeight);
+    return {
+        (screenWidth - VirtualWidth * scale) * 0.5f,
+        (screenHeight - VirtualHeight * scale) * 0.5f,
+        VirtualWidth * scale,
+        VirtualHeight * scale
+    };
+}
+
+}
 
 void Player::Update(Scene& scene, float deltaTime) {
     if (IsKeyPressed(KEY_F2)) {
@@ -12,32 +33,35 @@ void Player::Update(Scene& scene, float deltaTime) {
             ? MovementMode::Continuous
             : MovementMode::Grid;
         Movement::SetMovementMode(*this, nextMode, &scene.GetPhysics());
+        touchPath_.Clear();
     }
 
-    Vector2 direction = { 0.0f, 0.0f };
-    if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))  direction.x -= 1.0f;
-    if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT)) direction.x += 1.0f;
-    if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP))    direction.y -= 1.0f;
-    if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN))  direction.y += 1.0f;
-
-    // Grid movement is 4-directional. When two axes are held, use the one
-    // that was pressed most recently so turning works while holding a key.
-    if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP) ||
-        IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN)) {
-        preferHorizontal_ = false;
-    }
-    if (IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT) ||
-        IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT)) {
-        preferHorizontal_ = true;
-    }
-    if (mover.mode == MovementMode::Grid && direction.x != 0.0f && direction.y != 0.0f) {
-        if (preferHorizontal_) {
-            direction.y = 0.0f;
-        } else {
-            direction.x = 0.0f;
+    Vector2 target{};
+    if (touchInput_.ReadWorldTarget(
+            GetViewportDestination(),
+            { VirtualWidth, VirtualHeight },
+            scene.GetCamera(),
+            target)) {
+        touchPath_.Clear();
+        if (mover.mode == MovementMode::Grid) {
+            const Vector2 cell = GetCell();
+            const GridCell start{ static_cast<int>(std::round(cell.x)), static_cast<int>(std::round(cell.y)) };
+            std::vector<GridCell> path;
+            if (scene.GetPathfinder().FindPath(start, scene.GetPathfinder().WorldToCell(target), collider.size, path)) {
+                touchPath_.SetPath(std::move(path));
+            }
         }
     }
 
-    Movement::Move(*this, Vector2Normalize(direction));
+    const Vector2 direction = input_.ReadMovement(mover.mode);
+    if (direction.x != 0.0f || direction.y != 0.0f) {
+        touchPath_.Clear();
+        Movement::Move(*this, direction);
+    } else if (touchPath_.IsActive()) {
+        touchPath_.Update(*this);
+    } else {
+        Movement::Move(*this, { 0.0f, 0.0f });
+    }
+
     Actor::Update(scene, deltaTime);
 }

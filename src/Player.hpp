@@ -1,6 +1,9 @@
 #pragma once
 
 #include "Actor.hpp"
+#include "GridPathFollower.hpp"
+#include "PlayerInput.hpp"
+#include "TouchInput.hpp"
 
 class Scene;
 
@@ -9,5 +12,7 @@ public:
     void Update(Scene& scene, float deltaTime) override;
 
 private:
-    bool preferHorizontal_ = true;
+    PlayerInput input_;
+    TouchInput touchInput_;
+    GridPathFollower touchPath_;
 };

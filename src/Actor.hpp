@@ -22,6 +22,7 @@ struct Velocity {
 
 struct GridMover {
     MovementMode mode = MovementMode::Grid;
+    Vector2 gridOrigin{ 0.0f, 0.0f };
     Vector2 tileSize{ 16.0f, 16.0f };
     float stepDuration = 0.16f;
 
@@ -39,6 +40,7 @@ public:
     Collider collider;
     Velocity velocity;
     GridMover mover;
+    Vector2 facingDirection{ 0.0f, 1.0f };
 
     void Update(Scene& scene, float deltaTime) override;
     void DrawDebug() const override;
@@ -50,8 +52,10 @@ public:
 
     [[nodiscard]] Vector2 CellToPosition(Vector2 cell) const {
         return {
-            cell.x * mover.tileSize.x - collider.offset.x,
-            cell.y * mover.tileSize.y - collider.offset.y
+            mover.gridOrigin.x + cell.x * mover.tileSize.x +
+                (mover.tileSize.x - collider.size.x) * 0.5f - collider.offset.x,
+            mover.gridOrigin.y + cell.y * mover.tileSize.y +
+                (mover.tileSize.y - collider.size.y) * 0.5f - collider.offset.y
         };
     }
 

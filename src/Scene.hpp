@@ -1,7 +1,8 @@
 #pragma once
 
+#include "Physics/GridPathfinder.hpp"
 #include "Physics/PhysicsWorld.hpp"
-#include "TiledMap.h"
+#include "TiledMap.hpp"
 
 #include <raylib.h>
 
@@ -27,6 +28,8 @@ public:
 
     [[nodiscard]] PhysicsWorld& GetPhysics() { return physics_; }
     [[nodiscard]] const PhysicsWorld& GetPhysics() const { return physics_; }
+    [[nodiscard]] const GridPathfinder& GetPathfinder() const { return pathfinder_; }
+    [[nodiscard]] Camera2D GetCamera() const { return camera_; }
     [[nodiscard]] const Player* GetPlayer() const { return player_; }
 
     [[nodiscard]] bool IsDebugVisible() const { return debugVisible_; }
@@ -35,6 +38,7 @@ public:
 private:
     TiledMap map_;
     PhysicsWorld physics_;
+    GridPathfinder pathfinder_;
     Camera2D camera_{};
 
     std::vector<std::unique_ptr<GameObject>> objects_;

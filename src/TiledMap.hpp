@@ -5,6 +5,7 @@
 #include <tmxlite/TileLayer.hpp>
 
 #include "Physics/AABB.hpp"
+#include "Physics/Circle.hpp"
 
 #include <cstdint>
 #include <string>
@@ -22,6 +23,7 @@ public:
 
     [[nodiscard]] std::vector<AABB> GetColliders() const;
     [[nodiscard]] std::vector<AABB> GetLayerColliders(const std::string& layerName) const;
+    [[nodiscard]] std::vector<Circle> GetCircleColliders() const;
 
 private:
     struct TilesetTexture {

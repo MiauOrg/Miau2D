@@ -12,6 +12,7 @@ namespace Movement {
 
 void SetMovementMode(Actor& actor, MovementMode mode, const PhysicsWorld* world = nullptr);
 void SetTileSize(Actor& actor, Vector2 size);
+void SetGrid(Actor& actor, Vector2 origin, Vector2 cellSize);
 void SetStepDuration(Actor& actor, float seconds);
 
 // Moves the actor to the nearest free tile.
