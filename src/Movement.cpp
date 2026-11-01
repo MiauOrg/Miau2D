@@ -39,8 +39,15 @@ bool SameDirection(Vector2 a, Vector2 b) {
 }
 
 void SetTileSize(Actor& actor, Vector2 size) {
-    if (size.x > 0.0f && size.y > 0.0f) {
-        actor.mover.tileSize = size;
+    SetGrid(actor, actor.mover.gridOrigin, size);
+}
+
+void SetGrid(Actor& actor, Vector2 origin, Vector2 cellSize) {
+    if (std::isfinite(origin.x) && std::isfinite(origin.y) &&
+        std::isfinite(cellSize.x) && std::isfinite(cellSize.y) &&
+        cellSize.x > 0.0f && cellSize.y > 0.0f) {
+        actor.mover.gridOrigin = origin;
+        actor.mover.tileSize = cellSize;
     }
 }
 
@@ -102,12 +109,16 @@ void SetMovementMode(Actor& actor, MovementMode mode, const PhysicsWorld* world)
 void Move(Actor& actor, Vector2 direction) {
     auto& mover = actor.mover;
     mover.intent = direction;
+    const Vector2 dominant = DominantDirection(direction);
+    if (!IsZero(dominant)) {
+        actor.facingDirection = dominant;
+    }
 
     if (mover.mode == MovementMode::Grid) {
-        // During a step remember a different direction so the next step can be buffered.
         if (mover.stepActive) {
-            const Vector2 dominant = DominantDirection(direction);
-            if (!IsZero(dominant) && !SameDirection(dominant, mover.stepDirection)) {
+            if (IsZero(dominant)) {
+                mover.bufferedDirection = { 0.0f, 0.0f };
+            } else if (!SameDirection(dominant, mover.stepDirection)) {
                 mover.bufferedDirection = dominant;
             }
         }

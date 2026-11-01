@@ -74,8 +74,10 @@ int main() {
                     20, 20, 16, SKYBLUE);
             }
 
+            DrawText("Click/tap to pathfind in Grid mode | NPC wanders", 20, 42, 16, LIGHTGRAY);
+
             if (scene.IsDebugVisible()) {
-                DrawText("Physics Debug: ON (F1 to toggle)", 20, 44, 16, LIME);
+                DrawText("Physics Debug: ON (F1 to toggle)", 20, 64, 16, LIME);
 
                 if (player != nullptr) {
                     const Vector2 cell = player->GetCell();
@@ -83,10 +85,10 @@ int main() {
                         TextFormat("Static Colliders: %d | Cell: %.0f, %.0f",
                                    static_cast<int>(scene.GetPhysics().GetColliderCount()),
                                    cell.x, cell.y),
-                        20, 64, 16, RAYWHITE);
+                        20, 84, 16, RAYWHITE);
                 }
             } else {
-                DrawText("Press F1 to toggle Physics Debug", 20, 44, 16, GRAY);
+                DrawText("Press F1 to toggle Physics Debug", 20, 64, 16, GRAY);
             }
 
             DrawFPS(static_cast<int>(screenWidth) - 100, 20);

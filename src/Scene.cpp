@@ -5,6 +5,7 @@
 #include "GameObject.hpp"
 #include "Movement.hpp"
 #include "Player.hpp"
+#include "WanderingNPC.hpp"
 
 #include <raymath.h>
 
@@ -19,6 +20,22 @@ constexpr float PlayerSpriteSize = 24.0f;
 
 Vector2 CameraFocus(const Player& player) {
     return player.transform.position - Vector2 { 0.0f, player.frame.height * 0.5f };
+}
+
+void AddCharacterAnimations(SpriteAnimation& animation) {
+    const auto frame = [](int column) {
+        return Rectangle{ static_cast<float>(column * 24), 0.0f, 24.0f, 24.0f };
+    };
+
+    animation.AddClip("idle_down", { frame(0) }, 8.0f);
+    animation.AddClip("walk_down", { frame(0), frame(1) }, 6.0f);
+    animation.AddClip("idle_left", { frame(2) }, 8.0f);
+    animation.AddClip("walk_left", { frame(2), frame(3) }, 6.0f);
+    animation.AddClip("idle_up", { frame(4) }, 8.0f);
+    animation.AddClip("walk_up", { frame(4), frame(5) }, 6.0f);
+    animation.AddClip("idle_right", { frame(6) }, 8.0f);
+    animation.AddClip("walk_right", { frame(6), frame(7) }, 6.0f);
+    animation.Play("idle_down");
 }
 
 }  // namespace
@@ -37,9 +54,19 @@ bool Scene::Load() {
     }
 
     physics_.ClearStaticColliders();
+    physics_.ClearStaticCircleColliders();
     physics_.ClearWorldBounds();
     physics_.SetWorldBounds(map_.Bounds());
     physics_.AddStaticColliders(map_.GetColliders());
+    physics_.AddStaticCircleColliders(map_.GetCircleColliders());
+
+    const Rectangle mapBounds = map_.Bounds();
+    const Vector2 cellSize = map_.GetTileSize();
+    const Vector2 gridOrigin{ mapBounds.x, mapBounds.y };
+    if (!pathfinder_.SetGrid(physics_, AABB(mapBounds), cellSize)) {
+        Unload();
+        return false;
+    }
 
     playerTexture_ = LoadTexture("assets/characters/Character.png");
     if (playerTexture_.id != 0) {
@@ -50,12 +77,24 @@ bool Scene::Load() {
     player->texture = playerTexture_;
     player->frame = { 0.0f, 0.0f, PlayerSpriteSize, PlayerSpriteSize };
     player->collider.size = { 16.0f, 16.0f };
-    Movement::SetTileSize(*player, map_.GetTileSize());
+    Movement::SetGrid(*player, gridOrigin, cellSize);
     player->transform.position = player->CellToPosition(PlayerStartCell);
     Movement::SnapToGrid(*player, &physics_);
+    AddCharacterAnimations(player->animation);
 
     player_ = player.get();
     objects_.push_back(std::move(player));
+
+    auto npc = std::make_unique<WanderingNPC>(42);
+    npc->transform.position = { 252.0f, 120.0f };
+    npc->texture = playerTexture_;
+    npc->frame = { 0.0f, 0.0f, PlayerSpriteSize, PlayerSpriteSize };
+    npc->tint = { 220, 235, 255, 255 };
+    npc->collider.size = { 16.0f, 16.0f };
+    Movement::SetGrid(*npc, gridOrigin, cellSize);
+    Movement::SnapToGrid(*npc, &physics_);
+    AddCharacterAnimations(npc->animation);
+    objects_.push_back(std::move(npc));
 
     camera_ = Camera2D{};
     camera_.zoom = 1.0f;
@@ -80,6 +119,7 @@ void Scene::Unload() {
 
     map_.Unload();
     physics_.ClearStaticColliders();
+    physics_.ClearStaticCircleColliders();
     physics_.ClearWorldBounds();
     loaded_ = false;
 }
@@ -127,13 +167,13 @@ void Scene::Draw() {
     map_.DrawLayerPass(TiledMap::LayerPass::Below);
 
     const Rectangle bounds = map_.Bounds();
-    const Vector2 tileSize = map_.GetTileSize();
+    const Vector2 gridSize = pathfinder_.GetCellSize();
 
-    if (debugVisible_ && tileSize.x > 0.0f && tileSize.y > 0.0f) {
-        for (float x = bounds.x; x <= bounds.x + bounds.width + 0.5f; x += tileSize.x) {
+    if (debugVisible_ && gridSize.x > 0.0f && gridSize.y > 0.0f) {
+        for (float x = bounds.x; x <= bounds.x + bounds.width + 0.5f; x += gridSize.x) {
             DrawLineV({ x, bounds.y }, { x, bounds.y + bounds.height }, Fade(WHITE, 0.12f));
         }
-        for (float y = bounds.y; y <= bounds.y + bounds.height + 0.5f; y += tileSize.y) {
+        for (float y = bounds.y; y <= bounds.y + bounds.height + 0.5f; y += gridSize.y) {
             DrawLineV({ bounds.x, y }, { bounds.x + bounds.width, y }, Fade(WHITE, 0.12f));
         }
     }

@@ -1,4 +1,4 @@
-#include "TiledMap.h"
+#include "TiledMap.hpp"
 
 #include <tmxlite/Layer.hpp>
 #include <tmxlite/Tileset.hpp>
@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstddef>
 #include <string>
 
@@ -316,6 +317,9 @@ std::vector<AABB> TiledMap::GetColliders() const {
 
     for (const auto& layer : map_.getLayers()) {
         if (layer->getType() == tmx::Layer::Type::Object) {
+            if (layer->getName() == "CircleCollision") {
+                continue;
+            }
             const auto layerColliders = GetLayerColliders(layer->getName());
             colliders.insert(colliders.end(), layerColliders.begin(), layerColliders.end());
             continue;
@@ -330,6 +334,39 @@ std::vector<AABB> TiledMap::GetColliders() const {
             nameLower.find("obstacle") != std::string::npos) {
             const auto layerColliders = GetLayerColliders(layer->getName());
             colliders.insert(colliders.end(), layerColliders.begin(), layerColliders.end());
+        }
+    }
+
+    return colliders;
+}
+
+std::vector<Circle> TiledMap::GetCircleColliders() const {
+    std::vector<Circle> colliders;
+    if (!loaded_) {
+        return colliders;
+    }
+
+    for (const auto& layer : map_.getLayers()) {
+        if (layer->getName() != "CircleCollision" || layer->getType() != tmx::Layer::Type::Object) {
+            continue;
+        }
+
+        const auto& objectGroup = layer->getLayerAs<tmx::ObjectGroup>();
+        for (const auto& object : objectGroup.getObjects()) {
+            if (object.getShape() != tmx::Object::Shape::Ellipse) {
+                continue;
+            }
+
+            const auto& bounds = object.getAABB();
+            if (bounds.width <= 0.0f || bounds.height <= 0.0f ||
+                std::fabs(bounds.width - bounds.height) > 0.001f) {
+                continue;
+            }
+
+            colliders.push_back({
+                { bounds.left + bounds.width * 0.5f, bounds.top + bounds.height * 0.5f },
+                bounds.width * 0.5f
+            });
         }
     }
 
