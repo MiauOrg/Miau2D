@@ -11,7 +11,6 @@ enum class MovementMode {
 };
 
 struct Collider {
-    Vector2 offset{ 0.0f, 0.0f };
     Vector2 size{ 0.0f, 0.0f };
 };
 
@@ -52,10 +51,8 @@ public:
 
     [[nodiscard]] Vector2 CellToPosition(Vector2 cell) const {
         return {
-            mover.gridOrigin.x + cell.x * mover.tileSize.x +
-                (mover.tileSize.x - collider.size.x) * 0.5f - collider.offset.x,
-            mover.gridOrigin.y + cell.y * mover.tileSize.y +
-                (mover.tileSize.y - collider.size.y) * 0.5f - collider.offset.y
+            mover.gridOrigin.x + cell.x * mover.tileSize.x + mover.tileSize.x * 0.5f,
+            mover.gridOrigin.y + cell.y * mover.tileSize.y + mover.tileSize.y
         };
     }
 

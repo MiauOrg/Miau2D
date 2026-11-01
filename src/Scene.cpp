@@ -1,7 +1,6 @@
 #include "Scene.hpp"
 
 #include "Actor.hpp"
-#include "AppConfig.hpp"
 #include "GameObject.hpp"
 #include "Movement.hpp"
 #include "Player.hpp"
@@ -11,11 +10,18 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 
 namespace {
 
-constexpr Vector2 PlayerStart { 200.0f, 120.0f };
+constexpr Vector2 PlayerStartCell { 13.0f, 8.0f };
 constexpr float PlayerSpriteSize = 24.0f;
+constexpr int ViewportWidth = 640;
+constexpr int ViewportHeight = 352;
+
+Vector2 CameraFocus(const Player& player) {
+    return player.transform.position - Vector2 { 0.0f, player.frame.height * 0.5f };
+}
 
 void AddCharacterAnimations(SpriteAnimation& animation) {
     const auto frame = [](int column, int row) {
@@ -53,6 +59,11 @@ bool Scene::Load() {
         return false;
     }
 
+    if (!viewport_.Load(ViewportWidth, ViewportHeight)) {
+        Unload();
+        return false;
+    }
+
     physics_.ClearStaticColliders();
     physics_.ClearStaticCircleColliders();
     physics_.ClearWorldBounds();
@@ -74,12 +85,11 @@ bool Scene::Load() {
     }
 
     auto player = std::make_unique<Player>();
-    player->transform.position = PlayerStart;
     player->texture = playerTexture_;
     player->frame = { 0.0f, 0.0f, PlayerSpriteSize, PlayerSpriteSize };
-    player->collider.offset = { 4.0f, 8.0f };
     player->collider.size = { 16.0f, 16.0f };
     Movement::SetGrid(*player, gridOrigin, cellSize);
+    player->transform.position = player->CellToPosition(PlayerStartCell);
     Movement::SnapToGrid(*player, &physics_);
     AddCharacterAnimations(player->animation);
 
@@ -91,7 +101,6 @@ bool Scene::Load() {
     npc->texture = playerTexture_;
     npc->frame = { 0.0f, 0.0f, PlayerSpriteSize, PlayerSpriteSize };
     npc->tint = { 220, 235, 255, 255 };
-    npc->collider.offset = { 4.0f, 8.0f };
     npc->collider.size = { 16.0f, 16.0f };
     Movement::SetGrid(*npc, gridOrigin, cellSize);
     Movement::SnapToGrid(*npc, &physics_);
@@ -100,9 +109,9 @@ bool Scene::Load() {
 
     camera_ = Camera2D{};
     camera_.zoom = 1.0f;
-    camera_.target = player_->transform.position - Vector2 {
-        VirtualWidth * 0.5f,
-        VirtualHeight * 0.5f
+    camera_.target = CameraFocus(*player_) - Vector2 {
+        static_cast<float>(viewport_.Width()) * 0.5f,
+        static_cast<float>(viewport_.Height()) * 0.5f
     };
 
     loaded_ = true;
@@ -120,6 +129,7 @@ void Scene::Unload() {
     }
 
     map_.Unload();
+    viewport_.Unload();
     physics_.ClearStaticColliders();
     physics_.ClearStaticCircleColliders();
     physics_.ClearWorldBounds();
@@ -146,9 +156,9 @@ void Scene::Update(float deltaTime) {
     }
 
     if (player_ != nullptr) {
-        const Vector2 target = player_->transform.position - Vector2 {
-            VirtualWidth * 0.5f,
-            VirtualHeight * 0.5f
+        const Vector2 target = CameraFocus(*player_) - Vector2 {
+            static_cast<float>(viewport_.Width()) * 0.5f,
+            static_cast<float>(viewport_.Height()) * 0.5f
         };
         camera_.target = Vector2Lerp(camera_.target, target, deltaTime * 5.0f);
     }
@@ -164,29 +174,11 @@ void Scene::Draw() {
     renderCamera.target.x = std::floor(renderCamera.target.x);
     renderCamera.target.y = std::floor(renderCamera.target.y);
 
+    viewport_.Begin();
+    ClearBackground({ 16, 18, 27, 255 });
     BeginMode2D(renderCamera);
 
-    map_.Draw();
-
-    // Collect drawable objects and y-sort them so actors overlap correctly.
-    drawList_.clear();
-    for (auto& object : objects_) {
-        if (object->active && object->IsVisible()) {
-            drawList_.push_back(object.get());
-        }
-    }
-    std::stable_sort(drawList_.begin(), drawList_.end(),
-              [](const GameObject* a, const GameObject* b) {
-                  return a->SortY() < b->SortY();
-              });
-
-    std::size_t nextMapTile = 0;
-
-    for (const auto* object : drawList_) {
-        map_.DrawDepthTilesBefore(object->SortY(), nextMapTile);
-        object->Draw();
-    }
-    map_.DrawRemainingDepthTiles(nextMapTile);
+    map_.DrawLayerPass(TiledMap::LayerPass::Below);
 
     const Rectangle bounds = map_.Bounds();
     const Vector2 gridSize = pathfinder_.GetCellSize();
@@ -200,6 +192,36 @@ void Scene::Draw() {
         }
     }
 
+    // Collect drawable objects and y-sort them so actors overlap correctly.
+    drawList_.clear();
+    for (auto& object : objects_) {
+        if (object->active && object->IsVisible()) {
+            drawList_.push_back(object.get());
+        }
+    }
+    std::stable_sort(drawList_.begin(), drawList_.end(),
+                     [](const GameObject* a, const GameObject* b) {
+                         return a->SortY() < b->SortY();
+                     });
+
+    const auto& mapTiles = map_.SortedTiles();
+    std::size_t tileIndex = 0;
+
+    for (const auto* object : drawList_) {
+        while (tileIndex < mapTiles.size() &&
+               mapTiles[tileIndex].sortY <= object->SortY()) {
+            mapTiles[tileIndex].Draw();
+            ++tileIndex;
+        }
+        object->Draw();
+    }
+    while (tileIndex < mapTiles.size()) {
+        mapTiles[tileIndex].Draw();
+        ++tileIndex;
+    }
+
+    map_.DrawLayerPass(TiledMap::LayerPass::Above);
+
     if (debugVisible_) {
         physics_.DrawDebug();
         for (auto& object : objects_) {
@@ -208,4 +230,6 @@ void Scene::Draw() {
     }
 
     EndMode2D();
+    viewport_.End();
+    viewport_.Present();
 }

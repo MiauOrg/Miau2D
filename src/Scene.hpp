@@ -3,6 +3,7 @@
 #include "Physics/GridPathfinder.hpp"
 #include "Physics/PhysicsWorld.hpp"
 #include "TiledMap.hpp"
+#include "Viewport.hpp"
 
 #include <raylib.h>
 
@@ -30,6 +31,7 @@ public:
     [[nodiscard]] const PhysicsWorld& GetPhysics() const { return physics_; }
     [[nodiscard]] const GridPathfinder& GetPathfinder() const { return pathfinder_; }
     [[nodiscard]] Camera2D GetCamera() const { return camera_; }
+    [[nodiscard]] const Viewport& GetViewport() const { return viewport_; }
     [[nodiscard]] const Player* GetPlayer() const { return player_; }
 
     [[nodiscard]] bool IsDebugVisible() const { return debugVisible_; }
@@ -39,6 +41,7 @@ private:
     TiledMap map_;
     PhysicsWorld physics_;
     GridPathfinder pathfinder_;
+    Viewport viewport_;
     Camera2D camera_{};
 
     std::vector<std::unique_ptr<GameObject>> objects_;

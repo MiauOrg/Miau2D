@@ -1,31 +1,15 @@
 #include "Player.hpp"
 
-#include "AppConfig.hpp"
 #include "Physics/GridPathfinder.hpp"
 #include "Movement.hpp"
 #include "Scene.hpp"
+#include "Viewport.hpp"
 
 #include <raylib.h>
 
 #include <cmath>
 #include <utility>
 #include <vector>
-
-namespace {
-
-Rectangle GetViewportDestination() {
-    const float screenWidth = static_cast<float>(GetScreenWidth());
-    const float screenHeight = static_cast<float>(GetScreenHeight());
-    const float scale = std::fmin(screenWidth / VirtualWidth, screenHeight / VirtualHeight);
-    return {
-        (screenWidth - VirtualWidth * scale) * 0.5f,
-        (screenHeight - VirtualHeight * scale) * 0.5f,
-        VirtualWidth * scale,
-        VirtualHeight * scale
-    };
-}
-
-}
 
 void Player::Update(Scene& scene, float deltaTime) {
     if (IsKeyPressed(KEY_F2)) {
@@ -36,10 +20,11 @@ void Player::Update(Scene& scene, float deltaTime) {
         touchPath_.Clear();
     }
 
+    const Viewport& viewport = scene.GetViewport();
     Vector2 target{};
     if (touchInput_.ReadWorldTarget(
-            GetViewportDestination(),
-            { VirtualWidth, VirtualHeight },
+            viewport.ScreenRect(),
+            viewport.Size(),
             scene.GetCamera(),
             target)) {
         touchPath_.Clear();

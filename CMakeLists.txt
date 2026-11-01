@@ -41,18 +41,32 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(tmxlite)
 
-file(GLOB_RECURSE HESAN_SOURCES CONFIGURE_DEPENDS
+set(HESAN_GAME "rpg" CACHE STRING "Game folder under src/games")
+
+file(GLOB_RECURSE HESAN_ENGINE_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp"
+)
+list(FILTER HESAN_ENGINE_SOURCES EXCLUDE REGEX "/src/games/")
+list(FILTER HESAN_ENGINE_SOURCES EXCLUDE REGEX "/src/main.cpp$")
+
+file(GLOB_RECURSE HESAN_GAME_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/games/${HESAN_GAME}/*.cpp"
 )
 
-if(NOT HESAN_SOURCES)
-    message(FATAL_ERROR "No source files found under ${CMAKE_CURRENT_SOURCE_DIR}/src")
+if(NOT HESAN_GAME_SOURCES)
+    message(FATAL_ERROR "No game sources found under src/games/${HESAN_GAME}")
 endif()
 
-add_executable(Hesan2D ${HESAN_SOURCES})
+add_executable(Hesan2D
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp"
+    ${HESAN_ENGINE_SOURCES}
+    ${HESAN_GAME_SOURCES}
+)
 
-target_include_directories(Hesan2D PRIVATE src)
+target_include_directories(Hesan2D PRIVATE
+    src
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/games/${HESAN_GAME}"
+)
 target_link_libraries(Hesan2D PRIVATE raylib tmxlite)
 
 get_target_property(TMXLITE_INCLUDES tmxlite INTERFACE_INCLUDE_DIRECTORIES)

@@ -4,6 +4,7 @@
 #include "Physics/PhysicsWorld.hpp"
 #include "Scene.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <string>
 
@@ -35,19 +36,22 @@ void Actor::Update(Scene& scene, float deltaTime) {
 
 AABB Actor::GetCollider() const {
     return AABB{
-        transform.position.x + collider.offset.x,
-        transform.position.y + collider.offset.y,
+        transform.position.x - collider.size.x * 0.5f,
+        transform.position.y - collider.size.y,
         collider.size.x,
         collider.size.y
     };
 }
 
 AABB Actor::GetColliderAtCell(Vector2 cell) const {
+    const float left = mover.gridOrigin.x + cell.x * mover.tileSize.x
+        + (mover.tileSize.x - collider.size.x) * 0.5f;
+    const float top = mover.gridOrigin.y + cell.y * mover.tileSize.y
+        + (mover.tileSize.y - collider.size.y);
+
     return AABB{
-        mover.gridOrigin.x + cell.x * mover.tileSize.x +
-            (mover.tileSize.x - collider.size.x) * 0.5f,
-        mover.gridOrigin.y + cell.y * mover.tileSize.y +
-            (mover.tileSize.y - collider.size.y) * 0.5f,
+        left,
+        top,
         collider.size.x,
         collider.size.y
     };
@@ -57,10 +61,9 @@ Vector2 Actor::GetCell() const {
     const float width = (mover.tileSize.x > 0.0f) ? mover.tileSize.x : 1.0f;
     const float height = (mover.tileSize.y > 0.0f) ? mover.tileSize.y : 1.0f;
 
-    const Vector2 center = GetCollider().Center();
     return {
-        std::floor((center.x - mover.gridOrigin.x) / width),
-        std::floor((center.y - mover.gridOrigin.y) / height)
+        std::floor((transform.position.x - mover.gridOrigin.x) / width),
+        std::floor((transform.position.y - mover.gridOrigin.y - 0.0001f) / height)
     };
 }
 
