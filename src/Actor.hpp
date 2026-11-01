@@ -10,8 +10,6 @@ enum class MovementMode {
     Grid,
 };
 
-// Foot box, relative to the transform's ground anchor. It is always centered
-// horizontally on the anchor and its bottom edge sits on the anchor.
 struct Collider {
     Vector2 size{ 0.0f, 0.0f };
 };
@@ -49,7 +47,6 @@ public:
     [[nodiscard]] Vector2 GetCell() const;
     [[nodiscard]] bool CanOccupyCell(Vector2 cell, const PhysicsWorld* world) const;
 
-    // Returns the ground anchor (bottom-center of the tile).
     [[nodiscard]] Vector2 CellToPosition(Vector2 cell) const {
         return {
             cell.x * mover.tileSize.x + mover.tileSize.x * 0.5f,

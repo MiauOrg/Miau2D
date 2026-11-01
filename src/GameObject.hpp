@@ -22,7 +22,6 @@ public:
     // Whether this object should be collected for the y-sorted draw pass.
     [[nodiscard]] virtual bool IsVisible() const { return false; }
 
-    // Objects are sorted by their ground point, not by sprite bounds.
     [[nodiscard]] virtual float SortY() const { return transform.position.y; }
 
     hesan::Transform transform;
@@ -34,7 +33,6 @@ public:
     Texture2D texture{};
     Rectangle frame{ 0.0f, 0.0f, 0.0f, 0.0f };
 
-    // Nudge the sort point if the art's base does not sit exactly on the anchor.
     float sortOffset = 0.0f;
 
     void Draw() const override {
@@ -42,7 +40,6 @@ public:
             return;
         }
 
-        // The anchor is the bottom-center of the sprite; draw upward from it.
         const Vector2 topLeft {
             std::floor(transform.position.x - frame.width * 0.5f),
             std::floor(transform.position.y - frame.height)

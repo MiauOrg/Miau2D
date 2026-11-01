@@ -45,7 +45,7 @@ bool IsYSortLayer(const tmx::Layer& layer) {
             NameContains(layer, "props"));
 }
 
-}  // namespace
+}
 
 bool TiledMap::Load(const std::string& path) {
     Unload();
@@ -113,7 +113,6 @@ void TiledMap::DrawLayerPass(LayerPass pass) const {
             continue;
         }
 
-        // y-sorted layers are drawn by the caller, interleaved with actors.
         if (IsYSortLayer(*layer)) {
             continue;
         }
@@ -233,7 +232,6 @@ void TiledMap::BuildSortedTiles() {
         }
     }
 
-    // stable_sort keeps layer order for tiles sharing the same base line.
     std::stable_sort(sortedTiles_.begin(), sortedTiles_.end(),
                      [](const TileQuad& a, const TileQuad& b) {
                          return a.sortY < b.sortY;

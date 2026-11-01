@@ -150,8 +150,6 @@ void Scene::Draw() {
                          return a->SortY() < b->SortY();
                      });
 
-    // Merge y-sorted map tiles with the actors. Both lists are sorted by their
-    // ground line, so this is a single linear pass.
     const auto& mapTiles = map_.SortedTiles();
     std::size_t tileIndex = 0;
 

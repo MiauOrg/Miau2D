@@ -18,8 +18,6 @@ public:
         Above,
     };
 
-    // A pre-baked tile quad from a y-sorted layer. The list is static and
-    // sorted once at load time, then merged with actors every frame.
     struct TileQuad {
         Texture2D texture{};
         Rectangle source{};
@@ -35,8 +33,6 @@ public:
     bool Load(const std::string& path);
     void Unload();
 
-    // Draws normal tile layers. y-sorted layers are drawn by the caller via
-    // SortedTiles() so they can be interleaved with actors.
     void DrawLayerPass(LayerPass pass) const;
 
     [[nodiscard]] bool IsLoaded() const { return loaded_; }

@@ -21,8 +21,6 @@ AABB Actor::GetCollider() const {
 }
 
 AABB Actor::GetColliderAtCell(Vector2 cell) const {
-    // Foot box sits at the bottom-center of the cell, so the anchor stays at
-    // the tile's bottom-center regardless of collider size.
     const float left = cell.x * mover.tileSize.x
         + (mover.tileSize.x - collider.size.x) * 0.5f;
     const float top = cell.y * mover.tileSize.y
@@ -40,8 +38,6 @@ Vector2 Actor::GetCell() const {
     const float width = (mover.tileSize.x > 0.0f) ? mover.tileSize.x : 1.0f;
     const float height = (mover.tileSize.y > 0.0f) ? mover.tileSize.y : 1.0f;
 
-    // The anchor is bottom-center, so the cell is the one whose bottom edge is
-    // at or below the feet. The epsilon handles exact boundary positions.
     return {
         std::floor(transform.position.x / width),
         std::floor((transform.position.y - 0.0001f) / height)
