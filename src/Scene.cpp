@@ -10,11 +10,16 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 
 namespace {
 
-constexpr Vector2 PlayerStart { 200.0f, 120.0f };
+constexpr Vector2 PlayerStartCell { 13.0f, 8.0f };
 constexpr float PlayerSpriteSize = 24.0f;
+
+Vector2 CameraFocus(const Player& player) {
+    return player.transform.position - Vector2 { 0.0f, player.frame.height * 0.5f };
+}
 
 }  // namespace
 
@@ -42,12 +47,11 @@ bool Scene::Load() {
     }
 
     auto player = std::make_unique<Player>();
-    player->transform.position = PlayerStart;
     player->texture = playerTexture_;
     player->frame = { 0.0f, 0.0f, PlayerSpriteSize, PlayerSpriteSize };
-    player->collider.offset = { 4.0f, 8.0f };
     player->collider.size = { 16.0f, 16.0f };
     Movement::SetTileSize(*player, map_.GetTileSize());
+    player->transform.position = player->CellToPosition(PlayerStartCell);
     Movement::SnapToGrid(*player, &physics_);
 
     player_ = player.get();
@@ -55,7 +59,7 @@ bool Scene::Load() {
 
     camera_ = Camera2D{};
     camera_.zoom = 1.0f;
-    camera_.target = player_->transform.position - Vector2 {
+    camera_.target = CameraFocus(*player_) - Vector2 {
         VirtualWidth * 0.5f,
         VirtualHeight * 0.5f
     };
@@ -100,7 +104,7 @@ void Scene::Update(float deltaTime) {
     }
 
     if (player_ != nullptr) {
-        const Vector2 target = player_->transform.position - Vector2 {
+        const Vector2 target = CameraFocus(*player_) - Vector2 {
             VirtualWidth * 0.5f,
             VirtualHeight * 0.5f
         };
@@ -120,7 +124,7 @@ void Scene::Draw() {
 
     BeginMode2D(renderCamera);
 
-    map_.Draw();
+    map_.DrawLayerPass(TiledMap::LayerPass::Below);
 
     const Rectangle bounds = map_.Bounds();
     const Vector2 tileSize = map_.GetTileSize();
@@ -141,14 +145,30 @@ void Scene::Draw() {
             drawList_.push_back(object.get());
         }
     }
-    std::sort(drawList_.begin(), drawList_.end(),
-              [](const GameObject* a, const GameObject* b) {
-                  return a->SortY() < b->SortY();
-              });
+    std::stable_sort(drawList_.begin(), drawList_.end(),
+                     [](const GameObject* a, const GameObject* b) {
+                         return a->SortY() < b->SortY();
+                     });
+
+    // Merge y-sorted map tiles with the actors. Both lists are sorted by their
+    // ground line, so this is a single linear pass.
+    const auto& mapTiles = map_.SortedTiles();
+    std::size_t tileIndex = 0;
 
     for (const auto* object : drawList_) {
+        while (tileIndex < mapTiles.size() &&
+               mapTiles[tileIndex].sortY <= object->SortY()) {
+            mapTiles[tileIndex].Draw();
+            ++tileIndex;
+        }
         object->Draw();
     }
+    while (tileIndex < mapTiles.size()) {
+        mapTiles[tileIndex].Draw();
+        ++tileIndex;
+    }
+
+    map_.DrawLayerPass(TiledMap::LayerPass::Above);
 
     if (debugVisible_) {
         physics_.DrawDebug();

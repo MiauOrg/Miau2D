@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstddef>
+#include <string>
 
 namespace {
 
@@ -14,7 +15,37 @@ bool HasFlag(std::uint8_t flags, std::uint8_t flag) {
     return (flags & flag) != 0;
 }
 
+bool HasBoolProperty(const tmx::Layer& layer, const std::string& name) {
+    for (const auto& property : layer.getProperties()) {
+        if (property.getName() == name &&
+            property.getType() == tmx::Property::Type::Boolean) {
+            return property.getBoolValue();
+        }
+    }
+    return false;
 }
+
+bool NameContains(const tmx::Layer& layer, const char* needle) {
+    std::string name = layer.getName();
+    std::transform(name.begin(), name.end(), name.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return name.find(needle) != std::string::npos;
+}
+
+bool IsAboveLayer(const tmx::Layer& layer) {
+    return HasBoolProperty(layer, "above") ||
+           NameContains(layer, "overhead") ||
+           NameContains(layer, "above");
+}
+
+bool IsYSortLayer(const tmx::Layer& layer) {
+    return !IsAboveLayer(layer) &&
+           (HasBoolProperty(layer, "ysort") ||
+            NameContains(layer, "ysort") ||
+            NameContains(layer, "props"));
+}
+
+}  // namespace
 
 bool TiledMap::Load(const std::string& path) {
     Unload();
@@ -50,10 +81,13 @@ bool TiledMap::Load(const std::string& path) {
     }
 
     loaded_ = true;
+    BuildSortedTiles();
     return true;
 }
 
 void TiledMap::Unload() {
+    sortedTiles_.clear();
+
     for (auto& tileset : tilesets_) {
         if (tileset.texture.id != 0) {
             UnloadTexture(tileset.texture);
@@ -65,7 +99,7 @@ void TiledMap::Unload() {
     loaded_ = false;
 }
 
-void TiledMap::Draw() const {
+void TiledMap::DrawLayerPass(LayerPass pass) const {
     if (!loaded_) {
         return;
     }
@@ -76,6 +110,16 @@ void TiledMap::Draw() const {
         }
 
         if (layer->getName() == "Collision") {
+            continue;
+        }
+
+        // y-sorted layers are drawn by the caller, interleaved with actors.
+        if (IsYSortLayer(*layer)) {
+            continue;
+        }
+
+        const bool above = IsAboveLayer(*layer);
+        if (above != (pass == LayerPass::Above)) {
             continue;
         }
 
@@ -103,53 +147,97 @@ const TiledMap::TilesetTexture* TiledMap::FindTileset(std::uint32_t gid) const {
     return nullptr;
 }
 
-void TiledMap::DrawTileLayer(const tmx::TileLayer& layer) const {
+bool TiledMap::BuildTileQuad(const tmx::TileLayer& layer, std::size_t index, TileQuad& out) const {
     const auto& tiles = layer.getTiles();
     const auto size = layer.getSize();
 
     if (tiles.empty() || size.x == 0 || size.y == 0) {
-        return;
+        return false;
     }
+
+    const auto& tile = tiles[index];
+    if (tile.ID == 0) {
+        return false;
+    }
+
+    const TilesetTexture* tileset = FindTileset(tile.ID);
+    if (tileset == nullptr || tileset->texture.id == 0 || tileset->columns == 0) {
+        return false;
+    }
+
+    const std::uint32_t local = tile.ID - tileset->firstGID;
+    const std::uint32_t column = local % tileset->columns;
+    const std::uint32_t row = local / tileset->columns;
+
+    Rectangle source{
+        tileset->margin + static_cast<float>(column) * (tileset->tileSize.x + tileset->spacing),
+        tileset->margin + static_cast<float>(row) * (tileset->tileSize.y + tileset->spacing),
+        tileset->tileSize.x,
+        tileset->tileSize.y};
+
+    if (HasFlag(tile.flipFlags, tmx::TileLayer::Horizontal)) {
+        source.x += source.width;
+        source.width = -source.width;
+    }
+    if (HasFlag(tile.flipFlags, tmx::TileLayer::Vertical)) {
+        source.y += source.height;
+        source.height = -source.height;
+    }
+
+    const Rectangle destination{
+        static_cast<float>(index % size.x) * tileset->tileSize.x,
+        static_cast<float>(index / size.x) * tileset->tileSize.y,
+        tileset->tileSize.x,
+        tileset->tileSize.y};
+
+    out.texture = tileset->texture;
+    out.source = source;
+    out.destination = destination;
+    out.tint = Fade(WHITE, layer.getOpacity());
+    out.sortY = destination.y + destination.height;
+    return true;
+}
+
+void TiledMap::DrawTileLayer(const tmx::TileLayer& layer) const {
+    const auto& tiles = layer.getTiles();
 
     for (std::size_t index = 0; index < tiles.size(); ++index) {
-        const auto& tile = tiles[index];
-        if (tile.ID == 0) {
-            continue;
+        TileQuad quad;
+        if (BuildTileQuad(layer, index, quad)) {
+            quad.Draw();
         }
-
-        const TilesetTexture* tileset = FindTileset(tile.ID);
-        if (tileset == nullptr || tileset->texture.id == 0 || tileset->columns == 0) {
-            continue;
-        }
-
-        const std::uint32_t local = tile.ID - tileset->firstGID;
-        const std::uint32_t column = local % tileset->columns;
-        const std::uint32_t row = local / tileset->columns;
-
-        Rectangle source{
-            tileset->margin + static_cast<float>(column) * (tileset->tileSize.x + tileset->spacing),
-            tileset->margin + static_cast<float>(row) * (tileset->tileSize.y + tileset->spacing),
-            tileset->tileSize.x,
-            tileset->tileSize.y};
-
-        if (HasFlag(tile.flipFlags, tmx::TileLayer::Horizontal)) {
-            source.x += source.width;
-            source.width = -source.width;
-        }
-        if (HasFlag(tile.flipFlags, tmx::TileLayer::Vertical)) {
-            source.y += source.height;
-            source.height = -source.height;
-        }
-
-        const Rectangle destination{
-            static_cast<float>(index % size.x) * tileset->tileSize.x,
-            static_cast<float>(index / size.x) * tileset->tileSize.y,
-            tileset->tileSize.x,
-            tileset->tileSize.y};
-
-        DrawTexturePro(tileset->texture, source, destination, {0.0f, 0.0f}, 0.0f,
-                       Fade(WHITE, layer.getOpacity()));
     }
+}
+
+void TiledMap::BuildSortedTiles() {
+    sortedTiles_.clear();
+
+    for (const auto& layer : map_.getLayers()) {
+        if (!layer->getVisible() || layer->getType() != tmx::Layer::Type::Tile) {
+            continue;
+        }
+
+        if (layer->getName() == "Collision" || !IsYSortLayer(*layer)) {
+            continue;
+        }
+
+        const auto& tileLayer = layer->getLayerAs<tmx::TileLayer>();
+        const auto& tiles = tileLayer.getTiles();
+        sortedTiles_.reserve(sortedTiles_.size() + tiles.size());
+
+        for (std::size_t index = 0; index < tiles.size(); ++index) {
+            TileQuad quad;
+            if (BuildTileQuad(tileLayer, index, quad)) {
+                sortedTiles_.push_back(quad);
+            }
+        }
+    }
+
+    // stable_sort keeps layer order for tiles sharing the same base line.
+    std::stable_sort(sortedTiles_.begin(), sortedTiles_.end(),
+                     [](const TileQuad& a, const TileQuad& b) {
+                         return a.sortY < b.sortY;
+                     });
 }
 
 std::vector<AABB> TiledMap::GetLayerColliders(const std::string& layerName) const {
