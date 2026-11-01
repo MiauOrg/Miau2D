@@ -1,20 +1,24 @@
 {
-    "activeFile": "Overworld01.tmx",
+    "activeFile": "Overworld.tsx",
     "expandedProjectPaths": [
         "."
     ],
     "file.lastUsedOpenFilter": "Alle Dateien (*)",
     "fileStates": {
+        "Collision.tsx": {
+            "scaleInDock": 16,
+            "scaleInEditor": 32
+        },
         "Overworld.tsx": {
             "scaleInDock": 3,
             "scaleInEditor": 5.5
         },
         "Overworld01.tmx": {
-            "scale": 3,
-            "selectedLayer": 0,
+            "scale": 5.5,
+            "selectedLayer": 2,
             "viewCenter": {
-                "x": 233.66666666666666,
-                "y": 156
+                "x": 225.63636363636365,
+                "y": 230.1818181818182
             }
         }
     },
@@ -24,12 +28,14 @@
     "map.tileWidth": 16,
     "openFiles": [
         "Overworld.tsx",
-        "Overworld01.tmx"
+        "Overworld01.tmx",
+        "Collision.tsx"
     ],
     "project": "Hesan2D.tiled-project",
     "recentFiles": [
-        "Overworld.tsx",
-        "Overworld01.tmx"
+        "Collision.tsx",
+        "Overworld01.tmx",
+        "Overworld.tsx"
     ],
     "tileset.lastUsedFormat": "tsx",
     "tileset.tileSize": {

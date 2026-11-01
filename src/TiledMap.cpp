@@ -228,13 +228,10 @@ std::vector<AABB> TiledMap::GetColliders() const {
         return colliders;
     }
 
-    bool foundSpecificCollisionLayer = false;
-
     for (const auto& layer : map_.getLayers()) {
         if (layer->getType() == tmx::Layer::Type::Object) {
             const auto layerColliders = GetLayerColliders(layer->getName());
             colliders.insert(colliders.end(), layerColliders.begin(), layerColliders.end());
-            foundSpecificCollisionLayer = true;
             continue;
         }
 
@@ -247,7 +244,6 @@ std::vector<AABB> TiledMap::GetColliders() const {
             nameLower.find("obstacle") != std::string::npos) {
             const auto layerColliders = GetLayerColliders(layer->getName());
             colliders.insert(colliders.end(), layerColliders.begin(), layerColliders.end());
-            foundSpecificCollisionLayer = true;
         }
     }
 
