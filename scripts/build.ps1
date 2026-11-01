@@ -5,6 +5,8 @@ param(
     [ValidateSet('debug', 'release')]
     [string]$Config = 'debug',
 
+    [string]$Game = 'rpg',
+
     [switch]$Run
 )
 
@@ -19,8 +21,8 @@ if ((Test-Path $mingwBin) -and ($env:PATH -notlike "*$mingwBin*")) {
 
 Push-Location $root
 try {
-    Write-Host "==> Configuring ($Config)" -ForegroundColor Cyan
-    cmake --preset $Config
+    Write-Host "==> Configuring ($Config, game: $Game)" -ForegroundColor Cyan
+    cmake --preset $Config "-DHESAN_GAME=$Game"
     if ($LASTEXITCODE -ne 0) { throw "CMake configure failed with exit code $LASTEXITCODE." }
 
     Write-Host "==> Building ($Config)" -ForegroundColor Cyan

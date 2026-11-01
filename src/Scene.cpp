@@ -1,7 +1,6 @@
 #include "Scene.hpp"
 
 #include "Actor.hpp"
-#include "AppConfig.hpp"
 #include "GameObject.hpp"
 #include "Movement.hpp"
 #include "Player.hpp"
@@ -17,6 +16,8 @@ namespace {
 
 constexpr Vector2 PlayerStartCell { 13.0f, 8.0f };
 constexpr float PlayerSpriteSize = 24.0f;
+constexpr int ViewportWidth = 640;
+constexpr int ViewportHeight = 352;
 
 Vector2 CameraFocus(const Player& player) {
     return player.transform.position - Vector2 { 0.0f, player.frame.height * 0.5f };
@@ -50,6 +51,11 @@ bool Scene::Load() {
     Unload();
 
     if (!map_.Load("tiled/Overworld01.tmx")) {
+        return false;
+    }
+
+    if (!viewport_.Load(ViewportWidth, ViewportHeight)) {
+        Unload();
         return false;
     }
 
@@ -99,8 +105,8 @@ bool Scene::Load() {
     camera_ = Camera2D{};
     camera_.zoom = 1.0f;
     camera_.target = CameraFocus(*player_) - Vector2 {
-        VirtualWidth * 0.5f,
-        VirtualHeight * 0.5f
+        static_cast<float>(viewport_.Width()) * 0.5f,
+        static_cast<float>(viewport_.Height()) * 0.5f
     };
 
     loaded_ = true;
@@ -118,6 +124,7 @@ void Scene::Unload() {
     }
 
     map_.Unload();
+    viewport_.Unload();
     physics_.ClearStaticColliders();
     physics_.ClearStaticCircleColliders();
     physics_.ClearWorldBounds();
@@ -145,8 +152,8 @@ void Scene::Update(float deltaTime) {
 
     if (player_ != nullptr) {
         const Vector2 target = CameraFocus(*player_) - Vector2 {
-            VirtualWidth * 0.5f,
-            VirtualHeight * 0.5f
+            static_cast<float>(viewport_.Width()) * 0.5f,
+            static_cast<float>(viewport_.Height()) * 0.5f
         };
         camera_.target = Vector2Lerp(camera_.target, target, deltaTime * 5.0f);
     }
@@ -162,6 +169,8 @@ void Scene::Draw() {
     renderCamera.target.x = std::floor(renderCamera.target.x);
     renderCamera.target.y = std::floor(renderCamera.target.y);
 
+    viewport_.Begin();
+    ClearBackground({ 16, 18, 27, 255 });
     BeginMode2D(renderCamera);
 
     map_.DrawLayerPass(TiledMap::LayerPass::Below);
@@ -216,4 +225,6 @@ void Scene::Draw() {
     }
 
     EndMode2D();
+    viewport_.End();
+    viewport_.Present();
 }
