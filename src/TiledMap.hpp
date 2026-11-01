@@ -8,6 +8,7 @@
 #include "Physics/Circle.hpp"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -16,6 +17,8 @@ public:
     bool Load(const std::string& path);
     void Unload();
     void Draw() const;
+    void DrawDepthTilesBefore(float sortY, std::size_t& nextTile) const;
+    void DrawRemainingDepthTiles(std::size_t nextTile) const;
 
     [[nodiscard]] bool IsLoaded() const { return loaded_; }
     [[nodiscard]] Rectangle Bounds() const;
@@ -34,12 +37,24 @@ private:
         float margin = 0.0f;
         float spacing = 0.0f;
         Vector2 tileSize{};
+        std::vector<std::optional<float>> sortOffsets;
+    };
+
+    struct TileDraw {
+        Texture2D texture{};
+        Rectangle source{};
+        Rectangle destination{};
+        Color tint = WHITE;
+        float sortY = 0.0f;
     };
 
     const TilesetTexture* FindTileset(std::uint32_t gid) const;
-    void DrawTileLayer(const tmx::TileLayer& layer) const;
+    void BuildDrawTiles();
+    void DrawTile(const TileDraw& tile) const;
 
     tmx::Map map_;
     std::vector<TilesetTexture> tilesets_;
+    std::vector<TileDraw> backgroundTiles_;
+    std::vector<TileDraw> depthTiles_;
     bool loaded_ = false;
 };

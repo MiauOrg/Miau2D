@@ -18,18 +18,23 @@ constexpr Vector2 PlayerStart { 200.0f, 120.0f };
 constexpr float PlayerSpriteSize = 24.0f;
 
 void AddCharacterAnimations(SpriteAnimation& animation) {
-    const auto frame = [](int column) {
-        return Rectangle{ static_cast<float>(column * 24), 0.0f, 24.0f, 24.0f };
+    const auto frame = [](int column, int row) {
+        return Rectangle{
+            static_cast<float>(column * 24),
+            static_cast<float>(row * 24),
+            24.0f,
+            24.0f
+        };
     };
 
-    animation.AddClip("idle_down", { frame(0) }, 8.0f);
-    animation.AddClip("walk_down", { frame(0), frame(1) }, 6.0f);
-    animation.AddClip("idle_left", { frame(2) }, 8.0f);
-    animation.AddClip("walk_left", { frame(2), frame(3) }, 6.0f);
-    animation.AddClip("idle_up", { frame(4) }, 8.0f);
-    animation.AddClip("walk_up", { frame(4), frame(5) }, 6.0f);
-    animation.AddClip("idle_right", { frame(6) }, 8.0f);
-    animation.AddClip("walk_right", { frame(6), frame(7) }, 6.0f);
+    animation.AddClip("idle_down", { frame(0, 0) }, 8.0f);
+    animation.AddClip("walk_down", { frame(0, 1), frame(1, 1) }, 6.0f);
+    animation.AddClip("idle_left", { frame(6, 0) }, 8.0f);
+    animation.AddClip("walk_left", { frame(12, 1), frame(13, 1) }, 6.0f);
+    animation.AddClip("idle_up", { frame(4, 0) }, 8.0f);
+    animation.AddClip("walk_up", { frame(16, 1), frame(17, 1) }, 6.0f);
+    animation.AddClip("idle_right", { frame(2, 0) }, 8.0f);
+    animation.AddClip("walk_right", { frame(8, 1), frame(9, 1) }, 6.0f);
     animation.Play("idle_down");
 }
 
@@ -163,6 +168,26 @@ void Scene::Draw() {
 
     map_.Draw();
 
+    // Collect drawable objects and y-sort them so actors overlap correctly.
+    drawList_.clear();
+    for (auto& object : objects_) {
+        if (object->active && object->IsVisible()) {
+            drawList_.push_back(object.get());
+        }
+    }
+    std::stable_sort(drawList_.begin(), drawList_.end(),
+              [](const GameObject* a, const GameObject* b) {
+                  return a->SortY() < b->SortY();
+              });
+
+    std::size_t nextMapTile = 0;
+
+    for (const auto* object : drawList_) {
+        map_.DrawDepthTilesBefore(object->SortY(), nextMapTile);
+        object->Draw();
+    }
+    map_.DrawRemainingDepthTiles(nextMapTile);
+
     const Rectangle bounds = map_.Bounds();
     const Vector2 gridSize = pathfinder_.GetCellSize();
 
@@ -173,22 +198,6 @@ void Scene::Draw() {
         for (float y = bounds.y; y <= bounds.y + bounds.height + 0.5f; y += gridSize.y) {
             DrawLineV({ bounds.x, y }, { bounds.x + bounds.width, y }, Fade(WHITE, 0.12f));
         }
-    }
-
-    // Collect drawable objects and y-sort them so actors overlap correctly.
-    drawList_.clear();
-    for (auto& object : objects_) {
-        if (object->active && object->IsVisible()) {
-            drawList_.push_back(object.get());
-        }
-    }
-    std::sort(drawList_.begin(), drawList_.end(),
-              [](const GameObject* a, const GameObject* b) {
-                  return a->SortY() < b->SortY();
-              });
-
-    for (const auto* object : drawList_) {
-        object->Draw();
     }
 
     if (debugVisible_) {

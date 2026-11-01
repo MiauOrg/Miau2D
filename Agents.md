@@ -199,6 +199,18 @@ with aspect preservation. Physics uses world coordinates, never window
 coordinates or camera zoom. The render camera target is rounded down for pixel
 alignment; physical positions remain floating point.
 
+Tiles without a `sortOffsetY` tileset property are drawn before sprites, including
+flat terrain and grass on `Level2`. Raised props carry a numeric `sortOffsetY`
+in `tiled/Overworld.tsx`; their depth is the tile's world bottom plus that offset.
+All pieces of a tall object must share one world depth: a two-tile lamp uses 16
+on its upper tile and 0 on its base; a three-tile tree uses 32, 16, and 0.
+`Scene` merges these cached tile draws with actors sorted by their sprite bottom.
+At equal depth the map prop draws first, placing the actor in front. This prevents
+the actor appearing between parts of one tree or lamp. The rule applies across
+visual tile layers and does not depend on the `Level2` name. Tileset property
+changes take effect when the map reloads. Collision shapes and movement do not
+use this rendering metadata.
+
 Controls: WASD/arrows move, F1 toggles physics/grid visualization, F2 switches
 grid/free movement, left click/tap sets an A* destination in grid mode, and
 plus/minus adjust camera zoom. Grid is the default mode.
@@ -298,15 +310,15 @@ tile layers whose names contain `collision`, `solid`, or `obstacle` case-insensi
 Nonzero collision tiles are merged into horizontal spans per row. Object shapes in those
 layers are reduced to `obj.getAABB()`; polygon shapes and tileset-local collision
 objects are not imported. `GetCircleColliders()` separately reads equal-sided
-ellipse objects from the `CircleCollision` object layer. `Draw()` skips only the
-exact tile-layer name `Collision`, so collision discovery and rendering filters
-are not equivalent.
+ellipse objects from the `CircleCollision` object layer. Rendering skips the
+exact tile-layer name `Collision`. `Draw()` draws cached background tiles;
+`DrawDepthTilesBefore()` and `DrawRemainingDepthTiles()` draw the raised props
+between actors. Collision discovery and rendering filters are not equivalent.
 
 The renderer targets finite orthogonal tile maps; it warns on other orientations
 but still loads them. Horizontal/vertical tile flips are handled; diagonal flips
 and nested group traversal are not implemented. Keep `.tmx`/`.tsx` image paths
-valid when moving assets. Map load failure is not checked by `main.cpp`; preserve
-awareness of this when changing startup, bounds, or the debug grid.
+valid when moving assets. `Scene::Load()` reports map load failure to `main.cpp`.
 
 ## Circle collision
 
@@ -421,6 +433,12 @@ contact data separate from the existing ray/sweep `RaycastHit` time contract.
 - `SpriteAnimation` stores named source-rectangle clips and playback timing; it
   does not own the texture. `Actor` selects `idle_down`, `walk_down`, and
   corresponding left/up/right clips based on actual movement and facing.
+- `assets/characters/Character.png` uses 24 x 24 frames. The shared animation
+  setup in `Scene.cpp` uses idle poses from row 0 at columns 0 (down), 6 (left),
+  4 (up), and 2 (right). Walk frames come from row 1: columns 0-1 (down),
+  12-13 (left), 16-17 (up), and 8-9 (right). Keep these source directions
+  aligned with world movement: negative X is left, positive X is right, negative
+  Y is up, and positive Y is down.
 - `PlayerInput` turns keyboard state into movement vectors. `TouchInput` converts
   mouse/tap positions through the letterboxed viewport and camera. Touch path
   following currently operates in grid mode. `Player` composes both input
@@ -433,10 +451,16 @@ contact data separate from the existing ray/sweep `RaycastHit` time contract.
 
 ## Verification and reusable knowledge
 
-There is currently no automated test target or test suite. Do not claim tests
-ran merely because the project compiled. For future collision implementation,
-add focused mathematical regression cases in a separate test target outside
-`src/`, without opening a window. Geometry checks should cover:
+Keep regression checks local in the ignored `/tests` directory, as requested by
+the user. Do not make the main project build depend on those ignored files or
+assume they exist in a fresh checkout. The local depth checks capture draw calls
+and use raylib CPU image compositing to check whole props, both sides of the
+depth boundary, equal-depth ties, multiple actors, adjacent props, flat terrain,
+hidden layers, collision preservation, and reloads. This verifies ordering and
+compositing without a window; it does not verify the GPU driver. Do not claim a
+visual playthrough from compilation or process startup alone.
+
+Future geometry checks should cover:
 
 - Separated, tangent, slightly overlapping, and deeply overlapping shapes.
 - Circle pairs with different radii, coincident centers, and full containment.
